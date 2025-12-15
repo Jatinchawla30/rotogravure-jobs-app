@@ -15,44 +15,56 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setFirebaseUser(user);
-
       if (!user) {
+        setFirebaseUser(null);
         setUserDoc(null);
         setLoading(false);
         return;
       }
 
+      setFirebaseUser(user);
+
       try {
         const userRef = doc(db, "users", user.uid);
         const snap = await getDoc(userRef);
+
         if (!snap.exists()) {
+          // User exists in Auth but not in Firestore
           setUserDoc({
+            email: user.email,
+            name: user.email,
             role: "viewer",
             active: false,
-            name: user.email || "",
-            email: user.email || "",
           });
-          setAccessError(
-            "Your account is not activated yet. Please contact admin."
-          );
-          await signOut(auth);
+
+          setAccessError("Your account is not activated yet. Please contact admin.");
+
+          // Redirect client-side only
+          setTimeout(() => {
+            signOut(auth);
+            router.push("/login");
+          }, 50);
+
         } else {
           const data = snap.data();
-          if (data.active === false) {
+
+          if (!data.active) {
             setUserDoc(data);
-            setAccessError(
-              "Your account is deactivated. Please contact admin."
-            );
-            await signOut(auth);
+            setAccessError("Your account is not activated. Please contact admin.");
+
+            setTimeout(() => {
+              signOut(auth);
+              router.push("/login");
+            }, 50);
+
           } else {
             setUserDoc(data);
             setAccessError("");
           }
         }
-      } catch (err) {
-        console.error("Error loading user doc:", err);
-        setAccessError("Error loading user data. Please try again.");
+      } catch (error) {
+        console.error("Error fetching user:", error);
+        setAccessError("Error loading user data.");
       } finally {
         setLoading(false);
       }
@@ -68,15 +80,19 @@ export function AuthProvider({ children }) {
     router.push("/login");
   };
 
-  const value = {
-    firebaseUser,
-    user: userDoc,
-    loading,
-    accessError,
-    logout,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider
+      value={{
+        firebaseUser,
+        user: userDoc,
+        loading,
+        accessError,
+        logout,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {
