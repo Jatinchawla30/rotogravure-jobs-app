@@ -1,275 +1,113 @@
-import { useEffect, useState } from "react";
-import { useRouter } from "next/router";
-import Layout from "../../components/Layout";
-import { useAuth } from "../../context/AuthContext";
-import { db } from "../../firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { useState } from "react";
+import imageCompression from "browser-image-compression";
+import { supabase } from "../../lib/supabase";
 
-export default function NewJobPage() {
-  const { firebaseUser, user, loading } = useAuth();
-  const router = useRouter();
+export default function NewJob() {
+  const [title, setTitle] = useState("");
+  const [status, setStatus] = useState("Pending");
+  const [uploading, setUploading] = useState(false);
+  const [images, setImages] = useState([]);
 
-  const [form, setForm] = useState({
-    jobNumber: "",
-    customerName: "",
-    brandName: "",
-    designName: "",
-    cylinderNumbers: "",
-    materialsText: "",
-    webWidthMm: "",
-    repeatLengthMm: "",
-    gussetMm: "",
-    numberOfColours: "",
-    colourNames: "",
-    notes: "",
-  });
-
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (loading) return;
-    if (!firebaseUser) {
-      router.replace("/login");
-      return;
-    }
-    if (user && user.role === "viewer") {
-      alert("You do not have permission to create jobs.");
-      router.replace("/jobs");
-    }
-  }, [firebaseUser, loading, router, user]);
-
-  if (loading) return <p>Loading...</p>;
-  if (!firebaseUser || (user && user.role === "viewer")) return null;
-
-  const handleChange = (e) => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  };
-
-  const parseMaterials = (text) => {
-    const lines = text
-      .split("\n")
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0);
-    return lines.map((line) => {
-      const parts = line.split(",");
-      const type = parts[0]?.trim() || "";
-      const thicknessMicron = parts[1] ? Number(parts[1].trim()) : null;
-      return { type, thicknessMicron };
-    });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setSubmitting(true);
-
+  const uploadImage = async (file) => {
     try {
-      const materials = parseMaterials(form.materialsText);
+      setUploading(true);
 
-      const jobDoc = {
-        jobNumber: form.jobNumber,
-        customerName: form.customerName,
-        brandName: form.brandName,
-        designName: form.designName,
-        cylinderNumbers: form.cylinderNumbers,
-        materials,
-        webWidthMm: form.webWidthMm ? Number(form.webWidthMm) : null,
-        repeatLengthMm: form.repeatLengthMm
-          ? Number(form.repeatLengthMm)
-          : null,
-        gussetMm: form.gussetMm ? Number(form.gussetMm) : null,
-        numberOfColours: form.numberOfColours
-          ? Number(form.numberOfColours)
-          : null,
-        colourNames: form.colourNames,
-        notes: form.notes,
-        imageUrls: [],
-        createdAt: serverTimestamp(),
-        createdByUid: firebaseUser.uid,
-      };
+      const compressed = await imageCompression(file, {
+        maxSizeMB: 0.6,
+        maxWidthOrHeight: 1600,
+        useWebWorker: true,
+      });
 
-      const ref = await addDoc(collection(db, "jobs"), jobDoc);
-      router.push(`/jobs/${ref.id}`);
+      const fileName = `${Date.now()}-${file.name}`;
+      const filePath = `private/${fileName}`;
+
+      const { error } = await supabase.storage
+        .from("job-images")
+        .upload(filePath, compressed);
+
+      if (error) throw error;
+
+      const { data } = supabase.storage
+        .from("job-images")
+        .getPublicUrl(filePath);
+
+      setImages((prev) => [...prev, data.publicUrl]);
     } catch (err) {
-      console.error(err);
-      setError("Failed to create job");
+      alert(err.message);
     } finally {
-      setSubmitting(false);
+      setUploading(false);
+    }
+  };
+
+  const saveJob = async () => {
+    const { error } = await supabase.from("jobs").insert({
+      title,
+      status,
+      images,
+    });
+
+    if (error) {
+      alert(error.message);
+    } else {
+      alert("Job saved successfully");
+      setTitle("");
+      setImages([]);
     }
   };
 
   return (
-    <Layout>
-      <h1 style={{ marginBottom: "16px" }}>New Job</h1>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+    <div style={{ maxWidth: 900, margin: "40px auto" }}>
+      <h1>Create New Job</h1>
 
-      <form onSubmit={handleSubmit}>
-        <div style={rowStyle}>
-          <div style={fieldStyle}>
-            <label>Job Number</label>
-            <input
-              type="text"
-              name="jobNumber"
-              value={form.jobNumber}
-              onChange={handleChange}
-              required
-            />
-          </div>
-          <div style={fieldStyle}>
-            <label>Customer Name</label>
-            <input
-              type="text"
-              name="customerName"
-              value={form.customerName}
-              onChange={handleChange}
-              required
-            />
-          </div>
+      <div className="card">
+        <label>Job Title</label>
+        <input
+          placeholder="Enter job name"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+
+        <label>Status</label>
+        <select value={status} onChange={(e) => setStatus(e.target.value)}>
+          <option>Pending</option>
+          <option>In Progress</option>
+          <option>Completed</option>
+        </select>
+
+        <button onClick={saveJob}>Save Job</button>
+      </div>
+
+      <div className="card">
+        <h3>Upload Images</h3>
+
+        <input
+          type="file"
+          accept="image/*"
+          onChange={(e) => uploadImage(e.target.files[0])}
+        />
+
+        {uploading && <p>Uploading...</p>}
+
+        <div style={grid}>
+          {images.map((img, i) => (
+            <img key={i} src={img} style={image} />
+          ))}
         </div>
-
-        <div style={rowStyle}>
-          <div style={fieldStyle}>
-            <label>Brand Name</label>
-            <input
-              type="text"
-              name="brandName"
-              value={form.brandName}
-              onChange={handleChange}
-            />
-          </div>
-          <div style={fieldStyle}>
-            <label>Design Name</label>
-            <input
-              type="text"
-              name="designName"
-              value={form.designName}
-              onChange={handleChange}
-              required
-            />
-          </div>
-        </div>
-
-        <div style={rowStyle}>
-          <div style={fieldStyle}>
-            <label>Cylinder Numbers</label>
-            <input
-              type="text"
-              name="cylinderNumbers"
-              value={form.cylinderNumbers}
-              onChange={handleChange}
-            />
-          </div>
-          <div style={fieldStyle}>
-            <label>Number of Colours</label>
-            <input
-              type="number"
-              name="numberOfColours"
-              value={form.numberOfColours}
-              onChange={handleChange}
-            />
-          </div>
-        </div>
-
-        <div style={rowStyle}>
-          <div style={fieldStyle}>
-            <label>Colour Names / Shade Description</label>
-            <input
-              type="text"
-              name="colourNames"
-              value={form.colourNames}
-              onChange={handleChange}
-            />
-          </div>
-        </div>
-
-        <div style={rowStyle}>
-          <div style={fieldStyle}>
-            <label>Web Width (mm)</label>
-            <input
-              type="number"
-              name="webWidthMm"
-              value={form.webWidthMm}
-              onChange={handleChange}
-            />
-          </div>
-          <div style={fieldStyle}>
-            <label>Repeat Length (mm)</label>
-            <input
-              type="number"
-              name="repeatLengthMm"
-              value={form.repeatLengthMm}
-              onChange={handleChange}
-            />
-          </div>
-          <div style={fieldStyle}>
-            <label>Gusset (mm)</label>
-            <input
-              type="number"
-              name="gussetMm"
-              value={form.gussetMm}
-              onChange={handleChange}
-            />
-          </div>
-        </div>
-
-        <div style={{ marginBottom: "12px" }}>
-          <label>
-            Materials (one per line, format: MaterialType, ThicknessMicron)
-          </label>
-          <textarea
-            name="materialsText"
-            value={form.materialsText}
-            onChange={handleChange}
-            rows={4}
-            placeholder={`Example:
-PET, 12
-METPET, 12`}
-            style={{ width: "100%", padding: "8px" }}
-          />
-        </div>
-
-        <div style={{ marginBottom: "12px" }}>
-          <label>Notes / Remarks</label>
-          <textarea
-            name="notes"
-            value={form.notes}
-            onChange={handleChange}
-            rows={3}
-            style={{ width: "100%", padding: "8px" }}
-          />
-        </div>
-
-        <button
-          type="submit"
-          disabled={submitting}
-          style={{
-            padding: "8px 12px",
-            backgroundColor: "#111827",
-            color: "white",
-            border: "none",
-            borderRadius: "4px",
-            cursor: "pointer",
-          }}
-        >
-          {submitting ? "Creating..." : "Create Job"}
-        </button>
-      </form>
-    </Layout>
+      </div>
+    </div>
   );
 }
 
-const rowStyle = {
-  display: "flex",
-  gap: "16px",
-  marginBottom: "12px",
-  flexWrap: "wrap",
+const grid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fill, 140px)",
+  gap: 12,
+  marginTop: 10,
 };
 
-const fieldStyle = {
-  flex: "1",
-  minWidth: "200px",
-  display: "flex",
-  flexDirection: "column",
-  gap: "4px",
+const image = {
+  width: "100%",
+  height: 120,
+  objectFit: "cover",
+  borderRadius: 8,
 };
