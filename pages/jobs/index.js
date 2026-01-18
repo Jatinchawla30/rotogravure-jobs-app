@@ -1,61 +1,63 @@
 import { useEffect, useState } from "react";
-import { db } from "../../firebase";
-import { collection, getDocs } from "firebase/firestore";
-import { useAuth } from "../../context/AuthContext";
 import Link from "next/link";
+import { supabase } from "../../lib/supabaseClient";
+import { useAuth } from "../../context/AuthContext";
+import { useRouter } from "next/router";
 
-export default function JobsList() {
+export default function Jobs() {
   const { user, loading } = useAuth();
+  const router = useRouter();
   const [jobs, setJobs] = useState([]);
 
   useEffect(() => {
-    if (!loading && user) {
-      loadJobs();
+    if (!loading && !user) {
+      router.push("/login");
     }
-  }, [loading, user]);
+  }, [user, loading]);
+
+  useEffect(() => {
+    if (user) loadJobs();
+  }, [user]);
 
   const loadJobs = async () => {
-    const snap = await getDocs(collection(db, "jobs"));
-    const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    setJobs(list);
+    const { data, error } = await supabase
+      .from("jobs")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (!error) setJobs(data);
   };
 
-  if (loading) return <p>Loading...</p>;
+  if (loading || !user) return null;
 
   return (
-    <div style={{ padding: 20 }}>
+    <div style={{ padding: 40 }}>
       <h1>Jobs</h1>
 
-      {user?.role !== "viewer" && (
-        <Link href="/jobs/new">
-          <button style={{ marginBottom: 20 }}>➕ New Job</button>
-        </Link>
-      )}
+      <Link href="/jobs/new">
+        <button style={{ marginBottom: 20 }}>+ New Job</button>
+      </Link>
 
-      <table border="1" cellPadding="10">
-        <thead>
-          <tr>
-            <th>Job No.</th>
-            <th>Customer</th>
-            <th>Design</th>
-            <th>Colours</th>
-            <th>View</th>
-          </tr>
-        </thead>
-        <tbody>
-          {jobs.map((job) => (
-            <tr key={job.id}>
-              <td>{job.jobNumber}</td>
-              <td>{job.customer}</td>
-              <td>{job.design}</td>
-              <td>{job.colours}</td>
-              <td>
-                <Link href={`/jobs/${job.id}`}>Open</Link>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {jobs.length === 0 && <p>No jobs yet</p>}
+
+      {jobs.map((job) => (
+        <div
+          key={job.id}
+          style={{
+            padding: 16,
+            border: "1px solid #ddd",
+            borderRadius: 8,
+            marginBottom: 12,
+          }}
+        >
+          <h3>{job.title}</h3>
+          <p>Status: {job.status || "N/A"}</p>
+
+          <Link href={`/jobs/${job.id}`}>
+            View details →
+          </Link>
+        </div>
+      ))}
     </div>
   );
 }
