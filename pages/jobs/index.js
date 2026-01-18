@@ -1,63 +1,31 @@
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { supabase } from "../../lib/supabaseClient";
-import { useAuth } from "../../context/AuthContext";
-import { useRouter } from "next/router";
+import Link from "next/link";
 
-export default function Jobs() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
+export default function JobsPage() {
   const [jobs, setJobs] = useState([]);
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.push("/login");
-    }
-  }, [user, loading]);
-
-  useEffect(() => {
-    if (user) loadJobs();
-  }, [user]);
-
-  const loadJobs = async () => {
-    const { data, error } = await supabase
+    supabase
       .from("jobs")
       .select("*")
-      .order("created_at", { ascending: false });
-
-    if (!error) setJobs(data);
-  };
-
-  if (loading || !user) return null;
+      .order("created_at", { ascending: false })
+      .then(({ data }) => setJobs(data || []));
+  }, []);
 
   return (
-    <div style={{ padding: 40 }}>
+    <div style={{ maxWidth: 800, margin: "40px auto" }}>
       <h1>Jobs</h1>
 
-      <Link href="/jobs/new">
-        <button style={{ marginBottom: 20 }}>+ New Job</button>
-      </Link>
+      <Link href="/jobs/new">➕ Add New Job</Link>
 
-      {jobs.length === 0 && <p>No jobs yet</p>}
-
-      {jobs.map((job) => (
-        <div
-          key={job.id}
-          style={{
-            padding: 16,
-            border: "1px solid #ddd",
-            borderRadius: 8,
-            marginBottom: 12,
-          }}
-        >
-          <h3>{job.title}</h3>
-          <p>Status: {job.status || "N/A"}</p>
-
-          <Link href={`/jobs/${job.id}`}>
-            View details →
-          </Link>
-        </div>
-      ))}
+      <ul>
+        {jobs.map((job) => (
+          <li key={job.id}>
+            <strong>{job.title}</strong> — {job.customer} ({job.status})
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
