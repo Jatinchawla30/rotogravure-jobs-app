@@ -1,59 +1,58 @@
 import Link from "next/link";
-import { useAuth } from "../context/AuthContext";
+import { supabase } from "../lib/supabaseClient";
+import { useRouter } from "next/router";
 
-export default function Layout({ children }) {
-  const { user, logout } = useAuth();
+export default function Layout({ children, user }) {
+  const router = useRouter();
+
+  async function logout() {
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#f3f4f6" }}>
-      <header
+    <div style={{ display: "flex", minHeight: "100vh" }}>
+      {/* Sidebar */}
+      <aside
         style={{
-          backgroundColor: "#111827",
+          width: 220,
+          background: "#0f172a",
           color: "white",
-          padding: "10px 20px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
+          padding: 20,
         }}
       >
-        <div>
-          <Link href="/jobs">
-            <span style={{ fontWeight: "bold", cursor: "pointer" }}>
-              Rotogravure Jobs
-            </span>
-          </Link>
-        </div>
-        <nav style={{ display: "flex", gap: "15px", alignItems: "center" }}>
-          {user && (
-            <>
-              <Link href="/jobs">
-                <span style={{ cursor: "pointer" }}>Jobs</span>
-              </Link>
-              {user.role === "admin" && (
-                <Link href="/admin/users">
-                  <span style={{ cursor: "pointer" }}>Users</span>
-                </Link>
-              )}
-              <span style={{ fontSize: "0.9rem" }}>
-                {user.name || user.email} ({user.role})
-              </span>
-              <button
-                onClick={logout}
-                style={{
-                  padding: "4px 10px",
-                  borderRadius: "4px",
-                  border: "1px solid #4b5563",
-                  background: "#f9fafb",
-                  cursor: "pointer",
-                }}
-              >
-                Logout
-              </button>
-            </>
-          )}
+        <h2 style={{ marginBottom: 30 }}>Rotogravure</h2>
+
+        <nav style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <Link href="/dashboard">Dashboard</Link>
+          <Link href="/jobs">Jobs</Link>
+          <Link href="/jobs/new">Create Job</Link>
+          <Link href="/admin/users">Users</Link>
         </nav>
-      </header>
-      <main style={{ padding: "20px" }}>{children}</main>
+
+        <button
+          onClick={logout}
+          style={{
+            marginTop: 40,
+            background: "#ef4444",
+            color: "white",
+            border: "none",
+            padding: "8px 12px",
+            cursor: "pointer",
+          }}
+        >
+          Logout
+        </button>
+      </aside>
+
+      {/* Main Content */}
+      <main style={{ flex: 1, background: "#f8fafc", padding: 30 }}>
+        <div style={{ marginBottom: 20, color: "#475569" }}>
+          Logged in as: <strong>{user?.email}</strong>
+        </div>
+
+        {children}
+      </main>
     </div>
   );
 }
