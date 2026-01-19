@@ -45,4 +45,13 @@ input,
 select,
 textarea {
   width: 100%;
-  pa
+  padding: 8px;
+  margin-top: 6px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+}
+
+label {
+  font-weight: 600;
+  font-size: 14px;
+}
