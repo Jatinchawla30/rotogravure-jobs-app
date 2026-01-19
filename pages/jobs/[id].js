@@ -8,17 +8,17 @@ export default function JobDetailsPage() {
 
   const [job, setJob] = useState(null);
   const [cylinders, setCylinders] = useState([]);
+  const [materials, setMaterials] =_toggle([]);
+  const [newMaterial, setNewMaterial] = useState("");
 
   const [cylinderNo, setCylinderNo] = useState("");
   const [colour, setColour] = useState("");
-  const [repeat, setRepeat] = useState("");
-  const [webWidth, setWebWidth] = useState("");
-  const [notes, setNotes] = useState("");
 
   useEffect(() => {
     if (id) {
       fetchJob();
       fetchCylinders();
+      fetchMaterials();
     }
   }, [id]);
 
@@ -36,10 +36,35 @@ export default function JobDetailsPage() {
     const { data } = await supabase
       .from("cylinders")
       .select("*")
-      .eq("job_id", id)
-      .order("created_at", { ascending: true });
+      .eq("job_id", id);
 
     setCylinders(data || []);
+  }
+
+  async function fetchMaterials() {
+    const { data } = await supabase
+      .from("job_materials")
+      .select("*")
+      .eq("job_id", id);
+
+    setMaterials(data || []);
+  }
+
+  async function addMaterial(e) {
+    e.preventDefault();
+
+    const { error } = await supabase.from("job_materials").insert({
+      job_id: id,
+      material: newMaterial,
+    });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setNewMaterial("");
+    fetchMaterials();
   }
 
   async function addCylinder(e) {
@@ -49,9 +74,6 @@ export default function JobDetailsPage() {
       job_id: id,
       cylinder_no: cylinderNo,
       colour,
-      repeat_length_mm: repeat || null,
-      web_width_mm: webWidth || null,
-      notes,
     });
 
     if (error) {
@@ -61,10 +83,6 @@ export default function JobDetailsPage() {
 
     setCylinderNo("");
     setColour("");
-    setRepeat("");
-    setWebWidth("");
-    setNotes("");
-
     fetchCylinders();
   }
 
@@ -76,91 +94,61 @@ export default function JobDetailsPage() {
         Job {job.job_no} — {job.client}
       </h1>
 
-      <h2 style={{ marginTop: 30 }}>Cylinders</h2>
+      {/* MATERIALS */}
+      <h2 style={{ marginTop: 30 }}>Materials Used</h2>
 
-      <table
-        style={{
-          width: "100%",
-          background: "white",
-          borderRadius: 8,
-          marginBottom: 30,
-        }}
-      >
+      <ul>
+        {materials.map((m) => (
+          <li key={m.id}>{m.material}</li>
+        ))}
+        {materials.length === 0 && <li>No materials added</li>}
+      </ul>
+
+      <form onSubmit={addMaterial} style={{ marginBottom: 30 }}>
+        <input
+          placeholder="Material (PET, BOPP, etc.)"
+          value={newMaterial}
+          onChange={(e) => setNewMaterial(e.target.value)}
+          required
+        />
+        <button style={{ marginLeft: 10 }}>Add Material</button>
+      </form>
+
+      {/* CYLINDERS */}
+      <h2>Cylinders</h2>
+
+      <table style={{ width: "100%", background: "white" }}>
         <thead>
           <tr>
-            <th style={th}>Cylinder No</th>
-            <th style={th}>Colour</th>
-            <th style={th}>Repeat (mm)</th>
-            <th style={th}>Web Width (mm)</th>
-            <th style={th}>Notes</th>
+            <th>Cylinder No</th>
+            <th>Colour</th>
           </tr>
         </thead>
         <tbody>
           {cylinders.map((c) => (
             <tr key={c.id}>
-              <td style={td}>{c.cylinder_no}</td>
-              <td style={td}>{c.colour}</td>
-              <td style={td}>{c.repeat_length_mm}</td>
-              <td style={td}>{c.web_width_mm}</td>
-              <td style={td}>{c.notes}</td>
+              <td>{c.cylinder_no}</td>
+              <td>{c.colour}</td>
             </tr>
           ))}
-          {cylinders.length === 0 && (
-            <tr>
-              <td colSpan="5" style={td}>
-                No cylinders added yet
-              </td>
-            </tr>
-          )}
         </tbody>
       </table>
 
-      <h3>Add Cylinder</h3>
-
-      <form onSubmit={addCylinder} style={{ display: "grid", gap: 10 }}>
+      <form onSubmit={addCylinder} style={{ marginTop: 20 }}>
         <input
-          placeholder="Cylinder Number"
+          placeholder="Cylinder No"
           value={cylinderNo}
           onChange={(e) => setCylinderNo(e.target.value)}
           required
         />
         <input
-          placeholder="Colour / Shade"
+          placeholder="Colour"
           value={colour}
           onChange={(e) => setColour(e.target.value)}
           required
         />
-        <input
-          placeholder="Repeat Length (mm)"
-          value={repeat}
-          onChange={(e) => setRepeat(e.target.value)}
-        />
-        <input
-          placeholder="Web Width (mm)"
-          value={webWidth}
-          onChange={(e) => setWebWidth(e.target.value)}
-        />
-        <textarea
-          placeholder="Notes"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-        />
-
-        <button
-          style={{
-            background: "#2563eb",
-            color: "white",
-            border: "none",
-            padding: 10,
-            borderRadius: 6,
-          }}
-        >
-          Add Cylinder
-        </button>
+        <button style={{ marginLeft: 10 }}>Add Cylinder</button>
       </form>
     </div>
   );
 }
-
-const th = { padding: 10, textAlign: "left" };
-const td = { padding: 10, borderTop: "1px solid #e5e7eb" };
