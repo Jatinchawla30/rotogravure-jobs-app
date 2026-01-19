@@ -16,14 +16,21 @@ export default function JobsPage() {
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (!error) setJobs(data);
+    if (error) {
+      alert(error.message);
+    } else {
+      setJobs(data || []);
+    }
     setLoading(false);
   }
 
-  if (loading) return <p>Loading jobs...</p>;
+  if (loading) {
+    return <p style={{ padding: 20 }}>Loading jobs...</p>;
+  }
 
   return (
     <div>
+      {/* Header */}
       <div
         style={{
           display: "flex",
@@ -50,14 +57,14 @@ export default function JobsPage() {
         </Link>
       </div>
 
-      {jobs.length === 0 && <p>No jobs found.</p>}
-
+      {/* Jobs Table */}
       <table
         style={{
           width: "100%",
           background: "white",
           borderRadius: 8,
           overflow: "hidden",
+          borderCollapse: "collapse",
         }}
       >
         <thead style={{ background: "#f1f5f9" }}>
@@ -65,14 +72,35 @@ export default function JobsPage() {
             <th style={th}>Job No</th>
             <th style={th}>Client</th>
             <th style={th}>Status</th>
+            <th style={th}>Created</th>
           </tr>
         </thead>
+
         <tbody>
+          {jobs.length === 0 && (
+            <tr>
+              <td colSpan="4" style={td}>
+                No jobs found
+              </td>
+            </tr>
+          )}
+
           {jobs.map((job) => (
             <tr key={job.id}>
-              <td style={td}>{job.job_no}</td>
+              {/* 🔗 THIS IS THE IMPORTANT LINK */}
+              <td style={td}>
+                <Link href={`/jobs/${job.id}`}>
+                  <span style={{ color: "#2563eb", cursor: "pointer" }}>
+                    {job.job_no}
+                  </span>
+                </Link>
+              </td>
+
               <td style={td}>{job.client}</td>
               <td style={td}>{job.status}</td>
+              <td style={td}>
+                {new Date(job.created_at).toLocaleDateString()}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -81,5 +109,13 @@ export default function JobsPage() {
   );
 }
 
-const th = { padding: 12, textAlign: "left" };
-const td = { padding: 12, borderTop: "1px solid #e5e7eb" };
+const th = {
+  padding: 12,
+  textAlign: "left",
+  fontWeight: 600,
+};
+
+const td = {
+  padding: 12,
+  borderTop: "1px solid #e5e7eb",
+};
