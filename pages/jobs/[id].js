@@ -7,38 +7,28 @@ export default function JobDetailsPage() {
   const { id } = router.query;
 
   const [job, setJob] = useState(null);
+  const [materials, setMaterials] = useState([]);
   const [cylinders, setCylinders] = useState([]);
-  const [materials, setMaterials] =_toggle([]);
-  const [newMaterial, setNewMaterial] = useState("");
+  const [images, setImages] = useState([]);
 
+  const [newMaterial, setNewMaterial] = useState("");
   const [cylinderNo, setCylinderNo] = useState("");
   const [colour, setColour] = useState("");
+
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (id) {
       fetchJob();
-      fetchCylinders();
       fetchMaterials();
+      fetchCylinders();
+      fetchImages();
     }
   }, [id]);
 
   async function fetchJob() {
-    const { data } = await supabase
-      .from("jobs")
-      .select("*")
-      .eq("id", id)
-      .single();
-
+    const { data } = await supabase.from("jobs").select("*").eq("id", id).single();
     setJob(data);
-  }
-
-  async function fetchCylinders() {
-    const { data } = await supabase
-      .from("cylinders")
-      .select("*")
-      .eq("job_id", id);
-
-    setCylinders(data || []);
   }
 
   async function fetchMaterials() {
@@ -46,44 +36,77 @@ export default function JobDetailsPage() {
       .from("job_materials")
       .select("*")
       .eq("job_id", id);
-
     setMaterials(data || []);
+  }
+
+  async function fetchCylinders() {
+    const { data } = await supabase
+      .from("cylinders")
+      .select("*")
+      .eq("job_id", id);
+    setCylinders(data || []);
+  }
+
+  async function fetchImages() {
+    const { data } = await supabase
+      .from("job_images")
+      .select("*")
+      .eq("job_id", id)
+      .order("created_at", { ascending: false });
+    setImages(data || []);
   }
 
   async function addMaterial(e) {
     e.preventDefault();
-
-    const { error } = await supabase.from("job_materials").insert({
+    await supabase.from("job_materials").insert({
       job_id: id,
       material: newMaterial,
     });
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
     setNewMaterial("");
     fetchMaterials();
   }
 
   async function addCylinder(e) {
     e.preventDefault();
-
-    const { error } = await supabase.from("cylinders").insert({
+    await supabase.from("cylinders").insert({
       job_id: id,
       cylinder_no: cylinderNo,
       colour,
     });
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
     setCylinderNo("");
     setColour("");
     fetchCylinders();
+  }
+
+  async function uploadImage(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploading(true);
+
+    const filePath = `${id}/${Date.now()}-${file.name}`;
+
+    const { error } = await supabase.storage
+      .from("job-images")
+      .upload(filePath, file);
+
+    if (error) {
+      alert(error.message);
+      setUploading(false);
+      return;
+    }
+
+    const { data } = supabase.storage
+      .from("job-images")
+      .getPublicUrl(filePath);
+
+    await supabase.from("job_images").insert({
+      job_id: id,
+      image_url: data.publicUrl,
+    });
+
+    setUploading(false);
+    fetchImages();
   }
 
   if (!job) return <p>Loading job...</p>;
@@ -95,35 +118,26 @@ export default function JobDetailsPage() {
       </h1>
 
       {/* MATERIALS */}
-      <h2 style={{ marginTop: 30 }}>Materials Used</h2>
-
+      <h2>Materials Used</h2>
       <ul>
         {materials.map((m) => (
           <li key={m.id}>{m.material}</li>
         ))}
-        {materials.length === 0 && <li>No materials added</li>}
       </ul>
 
-      <form onSubmit={addMaterial} style={{ marginBottom: 30 }}>
+      <form onSubmit={addMaterial}>
         <input
           placeholder="Material (PET, BOPP, etc.)"
           value={newMaterial}
           onChange={(e) => setNewMaterial(e.target.value)}
           required
         />
-        <button style={{ marginLeft: 10 }}>Add Material</button>
+        <button>Add</button>
       </form>
 
       {/* CYLINDERS */}
-      <h2>Cylinders</h2>
-
-      <table style={{ width: "100%", background: "white" }}>
-        <thead>
-          <tr>
-            <th>Cylinder No</th>
-            <th>Colour</th>
-          </tr>
-        </thead>
+      <h2 style={{ marginTop: 30 }}>Cylinders</h2>
+      <table>
         <tbody>
           {cylinders.map((c) => (
             <tr key={c.id}>
@@ -134,7 +148,7 @@ export default function JobDetailsPage() {
         </tbody>
       </table>
 
-      <form onSubmit={addCylinder} style={{ marginTop: 20 }}>
+      <form onSubmit={addCylinder}>
         <input
           placeholder="Cylinder No"
           value={cylinderNo}
@@ -147,8 +161,26 @@ export default function JobDetailsPage() {
           onChange={(e) => setColour(e.target.value)}
           required
         />
-        <button style={{ marginLeft: 10 }}>Add Cylinder</button>
+        <button>Add Cylinder</button>
       </form>
+
+      {/* IMAGES */}
+      <h2 style={{ marginTop: 30 }}>Job Images</h2>
+
+      <input type="file" accept="image/*" onChange={uploadImage} />
+
+      {uploading && <p>Uploading image...</p>}
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 20 }}>
+        {images.map((img) => (
+          <img
+            key={img.id}
+            src={img.image_url}
+            alt="Job"
+            style={{ width: 150, borderRadius: 6 }}
+          />
+        ))}
+      </div>
     </div>
   );
 }
